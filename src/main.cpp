@@ -1,16 +1,21 @@
 #include <Arduino.h>
+#include <string.h>
 #include "main.h"
 
 const uint8_t buttonOnePin = 2;
 const uint8_t buttonTwoPin = 3;
 
-const uint8_t whiteLEDs  = 4;
-const uint8_t greenLEDs  = 5;
-const uint8_t redLEDs    = 6;
-const uint8_t blueLEDs   = 7;
-const uint8_t yellowLEDs = 8;
+const uint8_t whiteLEDs  = 5;
+const uint8_t greenLEDs  = 6;
+const uint8_t redLEDs    = 9;
+const uint8_t blueLEDs   = 10;
+const uint8_t yellowLEDs = 11;
+
+uint8_t LED_pins[] = {5, 6, 9, 10, 11};
 
 volatile uint8_t buttonState = 0;
+
+#define NUM_OF_CASES 6
 
 void setup() {
 
@@ -57,30 +62,86 @@ void loop() {
   
   //Solid Yellow
   case 4:
-    digitalWrite(yellowLEDs, 1
-    );
+    digitalWrite(yellowLEDs, 1);
+    break;
+
+  //Fast alternation
+  case 5:
+    fade_all(5000, 5);
+    break;
+
+  //Slow alternation
+  case 6:
+    fade_all(1000, 6);
     break;
   
   default:
-    resetLEDs();
     break;
   }
 
   Serial.print(buttonState);
 }
 
+void fade_all(unsigned int delay_us, unsigned int case_state){
+  /*
+  * delay_us   * Delay time in microseconds
+  * case_state * State of the FSM, or case in the main func 
+  */
+  while(buttonState == case_state){
+    for(int pin = 0; pin < 5; pin++){
+
+      //Increase in brightness
+      for(int fade = 0; fade < 256; fade++){
+        analogWrite(LED_pins[pin], fade);
+        delayMicroseconds(delay_us);
+        if (buttonState != case_state){
+          break;
+        }
+      }
+
+      if (buttonState != case_state){
+          break;
+        }
+
+      //Decrease in brightness
+      for(int fade = 255; fade >= 0; fade--){
+        analogWrite(LED_pins[pin], fade);
+        delayMicroseconds(delay_us);
+        if (buttonState != case_state){
+          break;
+        }
+      }
+
+    }
+  }
+}
+
 void pin_ISR1() {
   noInterrupts(); // Disable interrupts while in ISR
   resetLEDs(); // Turn off all LEDs
-  buttonState++; // Change Color scheme
-  while(digitalRead(buttonOnePin) == LOW); // Wait until pin goes HIGH again
+
+  // Change Color scheme
+  // Allow for rotating through the colors i.e. going from white to yellow and vice versa
+  if (buttonState < NUM_OF_CASES){
+    buttonState++;
+  } else {
+    buttonState = 0;
+  }
+
+  while(digitalRead(buttonOnePin) == LOW); // Wait until pin goes HIGH again (button unpressed)
   interrupts(); // Re-enable interrupts
 }
 
 void pin_ISR2() {
   noInterrupts();
   resetLEDs();
-  buttonState--;
+  
+  if (buttonState > 0){
+    buttonState--;
+  } else {
+    buttonState = NUM_OF_CASES;
+  }
+
   while(digitalRead(buttonTwoPin) == LOW);
   interrupts();
 
@@ -93,4 +154,5 @@ void resetLEDs() {
   digitalWrite(redLEDs,    0);
   digitalWrite(blueLEDs,   0);
   digitalWrite(yellowLEDs, 0);
+
 }
